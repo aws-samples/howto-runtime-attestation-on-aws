@@ -1,0 +1,22 @@
+name: InstallEksBasics
+description: Install basic packages for EKS image
+schemaVersion: 1.0
+
+parameters:
+  - EC2-USER:
+      type: string
+      default: ubuntu
+      description: The user on the instance
+  - SRC:
+      type: string
+      default: /home/ubuntu/src
+      description: The build directory
+
+phases:
+  - name: build
+    steps:
+      - name: InstallEksBasics
+        action: ExecuteBash
+        inputs:
+          commands:
+            - apt install -y tmux git rsync

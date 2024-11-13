@@ -1,0 +1,56 @@
+name: InstallQemuOvmf
+description: Install custom Qemu and OVMF
+schemaVersion: 1.0
+
+parameters:
+  - EC2-USER:
+      type: string
+      default: ubuntu
+      description: The user on the instance
+  - BUILD-DIR:
+      type: string
+      default: /home/ubuntu/src
+      description: The directory to build the kernel in
+
+phases:
+  - name: build
+    steps:
+      - name: InstallDeps
+        action: ExecuteBash
+        inputs:
+          commands:
+            - apt install -y nasm uuid-dev ninja-build acpica-tools libslirp-dev libbpf-dev libcap-ng-dev libtasn1-6-dev libnuma-dev libusb-1.0-0-dev libkeyutils-dev libglib2.0-dev python3-venv python-is-python3 virtinst valgrind
+            - apt install -y libbzip3-dev
+            - apt install -y ovmf qemu-system # To get the dependencies
+            - apt install -y python3-toml python3-tomli
+      - name: buildDir
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER }} -i -H mkdir -p {{ BUILD-DIR }}
+      - name: DownloadRepo
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }} && git clone https://github.com/AMDESE/AMDSEV.git"
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/AMDSEV && git checkout snp-latest"
+      - name: buildQemuOvmf
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/AMDSEV && ./build.sh qemu"
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/AMDSEV && git clone https://github.com/AMDESE/ovmf.git" # Fix for https://github.com/AMDESE/AMDSEV/issues/244
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/AMDSEV/ovmf && git checkout snp-latest"
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/AMDSEV/ovmf && sed  's/subhook.git/edk2-subhook.git/' -i .gitmodules && sed  's/Zeex/tianocore/' -i .gitmodules"
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/AMDSEV && ./build.sh ovmf"
+      - name: installKvmConf
+        action: ExecuteBash
+        inputs:
+          commands:
+            - cd {{ BUILD-DIR }}/AMDSEV
+            - cp kvm.conf /etc/modprobe.d/
+      - name: CleanUp
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Clean up"

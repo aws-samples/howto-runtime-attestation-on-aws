@@ -1,0 +1,13 @@
+name: CleanUpBuild
+description: Clean-up build directories
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: CleanUp
+        action: ExecuteBash
+        inputs:
+          commands:
+            - apt autoremove -y
+            - rm -rf /usr/local/src/linux

@@ -1,0 +1,87 @@
+name: InstallCustomKernel
+description: Install custom kernel
+schemaVersion: 1.0
+
+parameters:
+  - BUILD-DIR:
+      type: string
+      default: /usr/local/src
+      description: The directory to build the kernel in
+  - KERNEL-REPO:
+      type: string
+      default: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/
+      description: The linux kernel repository to download from
+  - VERSION:
+      type: string
+      default: "6.11.5"
+      description: kernel version to compile
+
+phases:
+  - name: build
+    steps:
+      - name: InstallDeps
+        action: ExecuteBash
+        inputs:
+          commands:
+            - apt install -y libncurses-dev flex bison libelf-dev libudev-dev libpci-dev libiberty-dev libelf-dev debhelper-compat dwarves ccache
+      - name: DracutCcp
+        action: ExecuteBash
+        inputs:
+          commands:
+            - DEBIAN_FRONTEND=noninteractive apt install dracut -y
+            - echo 'omit_drivers+=" ccp "' >> /etc/dracut.conf.d/20-omit-ccp.conf
+            - sudo dracut --force
+            - echo options ccp init_ex_path=/SEV_metadata >> /etc/modprobe.d/60-ccp.conf
+      - name: UpdateGrub
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sed 's/\(GRUB_CMD.*\)"/\1 mem_encrypt=on kvm_amd.sev=1 iommu=nopt"/' -i /etc/default/grub.d/50-cloudimg-settings.cfg
+            - grep GRUB_CMD /etc/default/grub.d/50-cloudimg-settings.cfg # To validate
+            - sudo update-grub
+            - sudo grep sev /boot/grub/grub.cfg # Check
+      - name: DownloadKernel
+        action: ExecuteBash
+        inputs:
+          commands:
+            - mkdir -p {{ BUILD-DIR }} && cd {{ BUILD-DIR }}
+            - git clone {{ KERNEL-REPO }}
+            - cd linux
+            - git tag -l v{{ VERSION }}*
+            - git checkout tags/v{{ VERSION }}
+      - name: configureKernel
+        action: ExecuteBash
+        inputs:
+          commands:
+            - cd {{ BUILD-DIR }}/linux
+            - cp -v /boot/config-$(uname -r) .config
+            - scripts/config --disable CONFIG_BASE_SMALL
+            - scripts/config --disable CONFIG_ANDROID_BINDER_IPC
+            - scripts/config --disable CONFIG_ANDROID_BINDERFS
+            - make olddefconfig
+            - make clean
+            - scripts/config --set-str SYSTEM_TRUSTED_KEYS ""
+            - scripts/config --set-str SYSTEM_REVOCATION_KEYS ""
+            - scripts/config --enable CONFIG_DEBUG_INFO_NONE
+            - scripts/config --disable CONFIG_DEBUG_INFO
+            - scripts/config --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+            - scripts/config --disable CONFIG_DEBUG_INFO_DWARF4
+            - scripts/config --disable CONFIG_DEBUG_INFO_DWARF5
+            - scripts/config --disable CONFIG_DEBUG_INF_BTF
+      - name: buildKernel
+        action: ExecuteBash
+        inputs:
+          commands:
+            - cd {{ BUILD-DIR }}/linux
+            - make bindeb-pkg -j"$(nproc)" LOCALVERSION=-sev-snp-"$(dpkg --print-architecture)" KDEB_PKGVERSION="$(make kernelversion)-1"
+      - name: installKernel
+        action: ExecuteBash
+        inputs:
+          commands:
+            - cd {{ BUILD-DIR }}
+            - sudo dpkg -i linux-*-{{ VERSION }}*64_6*
+      - name: CleanUp
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Clean up"

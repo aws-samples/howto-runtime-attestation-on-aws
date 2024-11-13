@@ -1,0 +1,34 @@
+name: InstallSevSnpUtils
+description: Install sevctl and snphost
+schemaVersion: 1.0
+
+parameters:
+  - EC2-USER:
+      type: string
+      default: ubuntu
+      description: The user on the instance
+  - BUILD-DIR:
+      type: string
+      default: /home/ubuntu/src
+      description: The build directory
+
+phases:
+  - name: build
+    steps:
+      - name: buildDir
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER}} -i -H mkdir -p {{ BUILD-DIR }}
+      - name: installSevCtl
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }} && git clone https://github.com/virtee/sevctl"
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/sevctl && cargo build -r"
+      - name: installSnpHost
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }} && git clone https://github.com/virtee/snphost"
+            - sudo -u {{ EC2-USER}} -i -H sh -c "cd {{ BUILD-DIR }}/snphost && cargo build -r"

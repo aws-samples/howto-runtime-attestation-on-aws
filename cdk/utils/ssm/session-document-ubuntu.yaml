@@ -1,0 +1,11 @@
+---
+schemaVersion: '1.0'
+description: Document to hold regional settings for Session Manager
+sessionType: Standard_Stream
+inputs:
+  runAsEnabled: true
+  runAsDefaultUser: 'ubuntu'
+  idleSessionTimeout: '20'
+  maxSessionDuration: '120'
+  shellProfile:
+    linux: 'sudo su -s /bin/bash -l ubuntu'

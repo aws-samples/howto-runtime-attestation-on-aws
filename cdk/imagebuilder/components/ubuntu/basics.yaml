@@ -1,0 +1,49 @@
+name: InstallBasics
+description: Install basic packages
+schemaVersion: 1.0
+
+parameters:
+  - EC2-USER:
+      type: string
+      default: ubuntu
+      description: The user on the instance
+  - SRC:
+      type: string
+      default: /home/ubuntu/src
+      description: The build directory
+
+phases:
+  - name: build
+    steps:
+      - name: UpdateUpgrade
+        action: ExecuteBash
+        inputs:
+          commands:
+            - apt update
+            - apt upgrade -y
+      - name: InstallBasics
+        action: ExecuteBash
+        inputs:
+          commands:
+            - apt install -y build-essential amazon-ec2-utils
+            - apt install -y msr-tools libssl-dev pkg-config
+      - name: InstallRust
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER }} -i -H  sh -c "curl --proto '=https' --tlsv1.3 -sSf https://sh.rustup.rs | sh -s -- -y"
+            #- . "$HOME/.cargo/env"
+      - name: CreateSrcDir
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER}} -i -H mkdir -p {{ SRC }}
+  - name: validate
+    steps:
+      - name: CheckSrcRust
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo -u {{ EC2-USER }} -i -H ls -la /home/{{ EC2-USER }}
+            - sudo -u {{ EC2-USER }} -i -H ls {{ SRC }}
+            - sudo -u {{ EC2-USER }} -i -H rustup -V
