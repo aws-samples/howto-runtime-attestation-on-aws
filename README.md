@@ -331,7 +331,7 @@ You can follow the instructions above in the _Validate the Host SEV-SNP Support_
 
 *This section will be improved*
 
-Follow the instructions to launch an [Ubuntu node](https://docs.aws.amazon.com/eks/latest/userguide/launch-node-ubuntu.html)
+Follow the instructions in [DEPLOY.md](eks/DEPLOY.md). These instructions create an EKS cluster and a managaed node-group with an M6A or M7A metal instance (using a spot deployment).
 
 # Guest Setup
 
