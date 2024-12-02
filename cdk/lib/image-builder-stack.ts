@@ -23,6 +23,7 @@ interface ImageBuilderStackProps extends cdk.StackProps {
     instanceTypes: string[];
     buildHostAmiIdNameParameterPath: string;
     buildEksHostAmiIdNameParameterPath: string;
+    buildEksCoCoHostAmiIdNameParameterPath: string;
 }
 
 export class ImageBuilderStack extends cdk.Stack {
@@ -69,6 +70,7 @@ export class ImageBuilderStack extends cdk.Stack {
         const parentEksImage = ec2.MachineImage.fromSsmParameter(props.eksAmiIdParameterPath);
         const buildHostAmiIdNameParameterPath = props.buildHostAmiIdNameParameterPath;
         const buildEksHostAmiIdNameParameterPath = props.buildEksHostAmiIdNameParameterPath;
+        const buildEksCoCoHostAmiIdNameParameterPath = props.buildEksCoCoHostAmiIdNameParameterPath;
         const instanceTypes = props.instanceTypes;
         
         // Add tags to all constructs in the stack
@@ -97,6 +99,7 @@ export class ImageBuilderStack extends cdk.Stack {
         const name = 'ImageBuilder-'+arch;
         const namePrefix = name+'-Ubuntu-Ec2';
         const eksNamePrefix = name+'-Ubuntu-EKS';
+        const eksCoCoNamePrefix = name+'-Ubuntu-EKS-CoCo';
         // See https://docs.aws.amazon.com/imagebuilder/latest/userguide/integ-sns.html#integ-sns-encrypted
         const imageBuilderArnPrincipal = new iam.ArnPrincipal('arn:aws:iam::'+cdk.Stack.of(this).account+':role/aws-service-role/imagebuilder.amazonaws.com/AWSServiceRoleForImageBuilder');
         const snsKey = new kms.Key(this,'SnsKey',{
@@ -117,12 +120,17 @@ export class ImageBuilderStack extends cdk.Stack {
         const notificationTopicEksHost = new topic.Topic(this,"NotificationTopicEksHost",{
             topicName: 'SevSnpImageBuilderNotificationsEksHost',
             masterKey: snsKey,
-
+        });
+        const notificationTopicEksCoCoHost = new topic.Topic(this,"NotificationTopicEksCoCoHost",{
+            topicName: 'SevSnpImageBuilderNotificationsEksCoCoHost',
+            masterKey: snsKey,
         });
         const infrastructureConfigurationHost = this.createInfrastructureConfiguration(instanceProfile.ref, arch, instanceTypes, notificationTopicHost.topicArn, 'Ec2');
         infrastructureConfigurationHost.addDependency(instanceProfile);
         const infrastructureConfigurationEksHost = this.createInfrastructureConfiguration(instanceProfile.ref, arch, instanceTypes, notificationTopicEksHost.topicArn, 'Eks');
         infrastructureConfigurationEksHost.addDependency(instanceProfile);
+        const infrastructureConfigurationEksCoCoHost = this.createInfrastructureConfiguration(instanceProfile.ref, arch, instanceTypes, notificationTopicEksCoCoHost.topicArn, 'EksCoCo');
+        infrastructureConfigurationEksCoCoHost.addDependency(instanceProfile);
 
         const basicsComponentUbuntuData = fs.readFileSync(path.join('imagebuilder/components/ubuntu/basics.yaml'), 'utf-8');
         const basicsComponentUbuntu = new imagebuilder.CfnComponent(this, 'BasicsComponentUbuntu', {
@@ -155,10 +163,19 @@ export class ImageBuilderStack extends cdk.Stack {
         const kernelComponentUbuntu = new imagebuilder.CfnComponent(this, 'KernelComponentUbuntu', {
             name: 'kernel',
             platform: 'Linux',
-            version: '0.0.5',
+            version: '0.0.12',
             changeDescription: 'Initial version',
             description: 'Install custom kernel that supports SEV-SNP',
             data: kernelComponentUbuntuData
+        });
+        const modulesComponentUbuntuData = fs.readFileSync(path.join('imagebuilder/components/ubuntu/modules.yaml'), 'utf-8');
+        const modulesComponentUbuntu = new imagebuilder.CfnComponent(this, 'ModulesComponentUbuntu', {
+            name: 'modules',
+            platform: 'Linux',
+            version: '0.0.2',
+            changeDescription: 'Initial version',
+            description: 'Configure modules to be loaded at boot-time',
+            data: modulesComponentUbuntuData
         });
         const qemuOvmfComponentUbuntuData = fs.readFileSync(path.join('imagebuilder/components/ubuntu/qemu_ovmf.yaml'), 'utf-8');
         const qemuOvmfComponentUbuntu = new imagebuilder.CfnComponent(this, 'QemuOvmfComponentUbuntu', {
@@ -182,7 +199,7 @@ export class ImageBuilderStack extends cdk.Stack {
         const imageRecipe = new imagebuilder.CfnImageRecipe(this, 'HostImageRecipe', {
             name: 'UbuntuSevSnpHostImage',
             description: 'Host Image Recipe for SEV-SNP with Ubuntu',
-            version: '0.0.18',
+            version: '0.0.25',
             components: [
                 { componentArn: basicsComponentUbuntu.attrArn },
                 { componentArn: sevSnpUtilsComponentUbuntu.attrArn },
@@ -190,7 +207,7 @@ export class ImageBuilderStack extends cdk.Stack {
                 {
                     componentArn: kernelComponentUbuntu.attrArn,
                     parameters: [
-                        { name: 'VERSION', value: ['6.11.5'] },
+                        { name: 'VERSION', value: ['v6.11.5'] },
                         { name: 'KERNEL-REPO', value: ['https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/'] }
                     ],
                 },
@@ -218,7 +235,7 @@ export class ImageBuilderStack extends cdk.Stack {
         const eksImageRecipe = new imagebuilder.CfnImageRecipe(this, 'EksHostImageRecipe', {
             name: 'UbuntuSevSnpEksHostImage',
             description: 'EKS Host Image Recipe for SEV-SNP with Ubuntu',
-            version: '0.0.18',
+            version: '0.0.27',
             components: [
                 { componentArn: basicsComponentUbuntu.attrArn },
                 { componentArn: eksBasicsComponentUbuntu.attrArn },
@@ -227,10 +244,48 @@ export class ImageBuilderStack extends cdk.Stack {
                 {
                     componentArn: kernelComponentUbuntu.attrArn,
                     parameters: [
-                        { name: 'VERSION', value: ['6.11.5'] },
+                        { name: 'VERSION', value: ['v6.11.5'] },
                         { name: 'KERNEL-REPO', value: ['https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/'] }
                     ],
                 },
+                { componentArn: modulesComponentUbuntu.attrArn },
+                { componentArn: cleanUpComponentUbuntu.attrArn },
+            ],
+            parentImage: parentEksImage.getImage(this).imageId,
+            additionalInstanceConfiguration: {
+                systemsManagerAgent: {
+                    uninstallAfterBuild: false,
+                },
+            },
+            blockDeviceMappings: [{
+                    // Only one block device
+                    deviceName: "/dev/sda1",
+                    ebs: {
+                        volumeType: "gp3",
+                        volumeSize: 48,
+                        deleteOnTermination: true,
+                        encrypted: true,
+                    }
+                }
+            ]
+        });
+
+        const eksCoCoImageRecipe = new imagebuilder.CfnImageRecipe(this, 'EksCoCoHostImageRecipe', {
+            name: 'UbuntuSevSnpEksCoCoHostImage',
+            description: 'EKS CoCo Host Image Recipe for SEV-SNP with Ubuntu',
+            version: '0.0.9',
+            components: [
+                { componentArn: basicsComponentUbuntu.attrArn },
+                { componentArn: eksBasicsComponentUbuntu.attrArn },
+                { componentArn: sevSnpUtilsComponentUbuntu.attrArn },
+                {
+                    componentArn: kernelComponentUbuntu.attrArn,
+                    parameters: [
+                        { name: 'VERSION', value: ['amd-snp-host-202402240000'] },
+                        { name: 'KERNEL-REPO', value: ['https://github.com/confidential-containers/linux'] }
+                    ],
+                },
+                { componentArn: modulesComponentUbuntu.attrArn },
                 { componentArn: cleanUpComponentUbuntu.attrArn },
             ],
             parentImage: parentEksImage.getImage(this).imageId,
@@ -254,6 +309,7 @@ export class ImageBuilderStack extends cdk.Stack {
 
         const distributionConfiguration = this.createDistributionConfiguration(namePrefix, cdk.Stack.of(this).region, name+'Ec2');
         const eksDistributionConfiguration = this.createDistributionConfiguration(eksNamePrefix, cdk.Stack.of(this).region, name+'Eks');
+        const eksCoCoDistributionConfiguration = this.createDistributionConfiguration(eksCoCoNamePrefix, cdk.Stack.of(this).region, name+'EksCoCo');
         const imageTestsConfigurationProperty: imagebuilder.CfnImagePipeline.ImageTestsConfigurationProperty = {
             imageTestsEnabled: false,
             timeoutMinutes: 60, // 60 is the minimum
@@ -281,6 +337,17 @@ export class ImageBuilderStack extends cdk.Stack {
             imageTestsConfiguration: imageTestsConfigurationProperty
         });
 
+        new imagebuilder.CfnImagePipeline(this, 'ImagePipelineUbuntuSevSnpCoCoHostEks', {
+            name: 'Image pipeline for Ubuntu SEV-SNP CoCo Host image on EKS',
+            description: 'Ubuntu EKS CoCo AMI with SEV-SNP host support (for EKS)',
+            infrastructureConfigurationArn: infrastructureConfigurationEksCoCoHost.attrArn,
+            imageRecipeArn: eksCoCoImageRecipe.attrArn,
+            distributionConfigurationArn: eksCoCoDistributionConfiguration.attrArn,
+            status: 'ENABLED',
+            enhancedImageMetadataEnabled: false,  // False needed if using PVE reporting, see https://docs.aws.amazon.com/imagebuilder/latest/userguide/troubleshooting.html#ts-ssm-mult-inventory
+            imageTestsConfiguration: imageTestsConfigurationProperty
+        });
+
         // Lambda to store the latest AMI in parameter store
         const latestUbuntuSevSnpHostId = new ssm.StringParameter(this, 'latestUbuntuSevSnpHostId', {
             description: 'Latest Ubuntu SEV-SNP Host AMI ID for EC2',
@@ -294,6 +361,12 @@ export class ImageBuilderStack extends cdk.Stack {
             dataType: ssm.ParameterDataType.TEXT,
             stringValue: 'n/a', // This is a dummy value, will be filled in by the lambda below
         });
+        const latestUbuntuSevSnpEksCoCoHostId = new ssm.StringParameter(this, 'latestUbuntuSevSnpEksCoCoHostId', {
+            description: 'Latest Ubuntu SEV-SNP CoCo Host AMI ID for EKS',
+            parameterName: buildEksCoCoHostAmiIdNameParameterPath,
+            dataType: ssm.ParameterDataType.TEXT,
+            stringValue: 'n/a', // This is a dummy value, will be filled in by the lambda below
+        });
         const functionRecordUbuntuSevSnpHostId = new lambda.Function(this, 'recordUbuntuSevSnpHostId', {
             description: 'Store Ubuntu SEV-SNP Host AMI ID',
             retryAttempts: 2,
@@ -302,7 +375,7 @@ export class ImageBuilderStack extends cdk.Stack {
             architecture: lambda.Architecture.ARM_64,
             code: lambda.Code.fromAsset('lambda/'),
             handler: 'record_ami_id.main',
-            runtime: lambda.Runtime.PYTHON_3_12,
+            runtime: lambda.Runtime.PYTHON_3_13,
             environment: {
                 region: cdk.Stack.of(this).region,
                 topic_arch_any: notificationTopicHost.topicName,
@@ -323,7 +396,7 @@ export class ImageBuilderStack extends cdk.Stack {
             architecture: lambda.Architecture.ARM_64,
             code: lambda.Code.fromAsset('lambda/'),
             handler: 'record_ami_id.main',
-            runtime: lambda.Runtime.PYTHON_3_12,
+            runtime: lambda.Runtime.PYTHON_3_13,
             environment: {
                 region: cdk.Stack.of(this).region,
                 topic_arch_any: notificationTopicEksHost.topicName,
@@ -334,6 +407,28 @@ export class ImageBuilderStack extends cdk.Stack {
         latestUbuntuSevSnpEksHostId.grantRead(functionRecordUbuntuSevSnpEksHostId);
         latestUbuntuSevSnpEksHostId.grantWrite(functionRecordUbuntuSevSnpEksHostId);
         NagSuppressions.addResourceSuppressions(functionRecordUbuntuSevSnpEksHostId, [
+            { id: 'AwsSolutions-IAM4', reason: 'Using AWS managed policy because this is the default CDK setting' },
+        ],true);
+        // EKS CoCo Image
+        const functionRecordUbuntuSevSnpEksCoCoHostId = new lambda.Function(this, 'recordUbuntuSevSnpEksCoCoHostId', {
+            description: 'Store Ubuntu SEV-SNP EKS CoCo Host AMI ID',
+            retryAttempts: 2,
+            memorySize: 128,
+            timeout: cdk.Duration.seconds(5),
+            architecture: lambda.Architecture.ARM_64,
+            code: lambda.Code.fromAsset('lambda/'),
+            handler: 'record_ami_id.main',
+            runtime: lambda.Runtime.PYTHON_3_13,
+            environment: {
+                region: cdk.Stack.of(this).region,
+                topic_arch_any: notificationTopicEksCoCoHost.topicName,
+                parameter_arch_any: latestUbuntuSevSnpEksCoCoHostId.parameterName,
+            },
+        });
+        notificationTopicEksCoCoHost.addSubscription(new subscription.LambdaSubscription(functionRecordUbuntuSevSnpEksCoCoHostId));
+        latestUbuntuSevSnpEksCoCoHostId.grantRead(functionRecordUbuntuSevSnpEksCoCoHostId);
+        latestUbuntuSevSnpEksCoCoHostId.grantWrite(functionRecordUbuntuSevSnpEksCoCoHostId);
+        NagSuppressions.addResourceSuppressions(functionRecordUbuntuSevSnpEksCoCoHostId, [
             { id: 'AwsSolutions-IAM4', reason: 'Using AWS managed policy because this is the default CDK setting' },
         ],true);
     }

@@ -24,6 +24,7 @@ const eksAmiIdParameterPath = '/aws/service/canonical/ubuntu/eks/22.04/1.31/stab
 const defaultAmiIdParameterPath = '/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id'
 const buildHostAmiIdNameParameterPath = '/'+applicationName+'/ImageBuilder/Host/Ubuntu/AMI/ID'
 const buildEksHostAmiIdNameParameterPath = '/'+applicationName+'/ImageBuilder/EksHost/Ubuntu/AMI/ID'
+const buildEksCoCoHostAmiIdNameParameterPath = '/'+applicationName+'/ImageBuilder/EksCoCoHost/Ubuntu/AMI/ID'
 
 const app = new cdk.App();
 cdk.Aspects.of(app).add(new AwsSolutionsChecks());
@@ -53,7 +54,8 @@ new ImageBuilderStack(app, applicationName+'ImageBuilderStack'+regionCode.toUppe
   eksAmiIdParameterPath: eksAmiIdParameterPath,
   instanceTypes: ['m7a.48xlarge','m6a.48xlarge','m7a.32xlarge','m6a.32xlarge','m7a.24xlarge','m6a.24xlarge','m7a.16xlarge','m6a.16xlarge'],
   buildHostAmiIdNameParameterPath: buildHostAmiIdNameParameterPath,
-  buildEksHostAmiIdNameParameterPath: buildEksHostAmiIdNameParameterPath
+  buildEksHostAmiIdNameParameterPath: buildEksHostAmiIdNameParameterPath,
+  buildEksCoCoHostAmiIdNameParameterPath: buildEksCoCoHostAmiIdNameParameterPath,
 })
 
 const compute = new ComputeStack(app, applicationName+'ComputeStack'+regionCode.toUpperCase(), {

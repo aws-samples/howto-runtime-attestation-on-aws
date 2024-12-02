@@ -1,15 +1,16 @@
 # Runtime Attestation
 
+External version: https://github.com/aws-samples/howto-runtime-attestation-on-aws
+
 This repository provides artefacts to build and deploy an Amazon machine image (AMI) with SEV-SNP support. This image is meant to be deployed on a bare-metal host with SEV-SNP support (M6A or M7A). The AMI comprises a host OS with kernel support and patched KVM/OVMF (from the [AMDSEV repository](https://github.com/AMDESE/AMDSEV.git)). The bare-metal EC2 host can be used standalone or attached to a Kubernetes cluster. With the standalone EC2, you can then launch a guest OS.
 
 Standard attestation workflow is validated.
 
 This repository provides sample codes for two build and deployment options. With Option 1, you start an EC2 bare-metal instance via the console and follow the build instructions in this README. With Options 2, you use the two CDK stacks. The first stack creates an EC2 Image Builder pipeline that builds all the software dependencies and creates an AMI. This first stack also builds a custom [Ubuntu image for an EKS worker node](https://cloud-images.ubuntu.com/docs/aws/eks/) with SEV-SNP support. The second stack launches an EC2 bare-metal instance, using the pre-build AMI, with a [spot persistent request](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-requests.html) to keep cost to a minimum. You can also decide to launch the instance with any other AMI (useful to experiment).
 
-Work in progress: three next steps are (in no specific order)
+Work in progress: two further steps are (in no specific order)
 1. Consider Linux distributions beyond Ubuntu
 2. Use upstream QEMU and OVMF rather the versions supplied via the [AMDSEV repository](https://github.com/AMDESE/AMDSEV.git)
-3. Add instructions to deploy the custom [Ubuntu image for an EKS worker node](https://cloud-images.ubuntu.com/docs/aws/eks/) with EKS
 
 As SEV-SNP support trickles down in various distributions, getting it all setup will become simpler.
 
@@ -19,11 +20,12 @@ _Warning_: using bare-metal instances generate costs. Make sure to terminate or 
 
 ## Status
 
-| m6a | m7a | OS | Custom Host Kernel | AMDSEV QEMU and OVMF | Standard attestation workflow | Rust version in Guest |
-|---|---|---|---|---|---|---|
-| :white_check_mark:  | :white_check_mark:  | Ubuntu [Jammy 1.31 for EKS](https://cloud-images.ubuntu.com/docs/aws/eks/) | [stable 6.11.5](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/?h=v6.11.5) | [snp-latest d9404d5](https://github.com/AMDESE/AMDSEV/commit/d9404d58c0b6cc7c8b6c8c2ad190726acebdfde9) | SEV-SNP Validated :white_check_mark: / [EKS workder node](https://docs.aws.amazon.com/eks/latest/userguide/launch-node-ubuntu.html) :white_check_mark: | 1.82.0 |
-| :white_check_mark:  | :white_check_mark: | Ubuntu 24.04.1 LTS | [stable 6.11.5](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/?h=v6.11.5) | [snp-latest d9404d5](https://github.com/AMDESE/AMDSEV/commit/d9404d58c0b6cc7c8b6c8c2ad190726acebdfde9) | Validated :white_check_mark: | 1.82.0 |
-| :white_check_mark:  | :white_check_mark: | Ubuntu 24.04.1 LTS | [mainline 6.11](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tag/?h=v6.11) | [snp-latest d9404d5](https://github.com/AMDESE/AMDSEV/commit/d9404d58c0b6cc7c8b6c8c2ad190726acebdfde9) | Validated :white_check_mark: | 1.82.0 |
+| m6a | m7a | OS | Custom Host Kernel | QEMU and OVMF | Standard attestation workflow | Rust version in Guest | Confidential containers |
+|---|---|---|---|---|---|---|---|
+| :white_check_mark:  | :white_check_mark:  | Ubuntu [Jammy 1.31 for EKS](https://cloud-images.ubuntu.com/docs/aws/eks/) | [stable 6.11.5](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/?h=v6.11.5) | AMDSEV [snp-latest d9404d5](https://github.com/AMDESE/AMDSEV/commit/d9404d58c0b6cc7c8b6c8c2ad190726acebdfde9) | SEV-SNP Validated :white_check_mark: / [EKS workder node](https://docs.aws.amazon.com/eks/latest/userguide/launch-node-ubuntu.html) :white_check_mark: | 1.82.0 | |
+| :white_check_mark:  | :white_check_mark:  | Ubuntu [Jammy 1.31 for EKS](https://cloud-images.ubuntu.com/docs/aws/eks/) | [6.8.0-rc5-next-20240221-snp-host-cc2568386](https://github.com/confidential-containers/linux/tree/amd-snp-host-202402240000) |  Via [Kata Containers 3.11.0](https://github.com/kata-containers/kata-containers/releases/tag/3.11.0) |  |  | SEV-SNP Validated :white_check_mark: / [EKS workder node](https://docs.aws.amazon.com/eks/latest/userguide/launch-node-ubuntu.html) with [confidential containers 0.11.0](https://github.com/confidential-containers/confidential-containers/blob/main/releases/v0.11.0.md) :white_check_mark: |
+| :white_check_mark:  | :white_check_mark: | Ubuntu 24.04.1 LTS | [stable 6.11.5](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/?h=v6.11.5) | AMDSEV [snp-latest d9404d5](https://github.com/AMDESE/AMDSEV/commit/d9404d58c0b6cc7c8b6c8c2ad190726acebdfde9) | Validated :white_check_mark: | 1.82.0 | |
+| :white_check_mark:  | :white_check_mark: | Ubuntu 24.04.1 LTS | [mainline 6.11](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tag/?h=v6.11) | AMDSEV [snp-latest d9404d5](https://github.com/AMDESE/AMDSEV/commit/d9404d58c0b6cc7c8b6c8c2ad190726acebdfde9) | Validated :white_check_mark: | 1.82.0 | |
 
 The :white_check_mark: under the m6a and m7a column means that the output of `snphost` shows `[ PASS ]` for all lines. Validated for Standard attestation workflow means that it could be replicated according to the instructions in the Section _Standard Attestion_ below (and that the output of `snpguest` shows shows `[ PASS ]`).
 
@@ -317,6 +319,11 @@ cdk deploy RuntimeAttestationComputeStackEUC1 --require-approval never -c useCus
 ```
 Use `-c instanceClass=m7a` to deploy an M7A instance.
 If you want to use the CDK application to deploy the AWS EC2 bare-metal instance with a default Ubuntu image, remove the `-c useCustomAmi=true` parameter.
+Use
+```bash
+AWS_REGION=REGION cdk ...
+```
+to deploy in another region.
 
 ## Connect to the Instance
 
@@ -329,9 +336,7 @@ You can follow the instructions above in the _Validate the Host SEV-SNP Support_
 
 # Test the EKS Worker node
 
-*This section will be improved*
-
-Follow the instructions in [DEPLOY.md](eks/DEPLOY.md). These instructions create an EKS cluster and a managaed node-group with an M6A or M7A metal instance (using a spot deployment).
+Follow the instructions in [DEPLOY.md](eks/DEPLOY.md). These instructions create an EKS cluster and a managed node-group with an M6A or M7A metal instance (using a spot deployment). You can then experiment with [Kata](eks/KATA.md) and [confidential](eks/COCO.md) containers.
 
 # Guest Setup
 

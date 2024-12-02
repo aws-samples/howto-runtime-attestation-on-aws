@@ -13,8 +13,12 @@ parameters:
       description: The linux kernel repository to download from
   - VERSION:
       type: string
-      default: "6.11.5"
+      default: "v6.11.5"
       description: kernel version to compile
+  - REPLACE-EXTRAVERSION:
+      type: string
+      default: "rc5"
+      description: Tries to replace this string in the kernel Makefile EXTRAVERSION field
 
 phases:
   - name: build
@@ -47,13 +51,14 @@ phases:
             - mkdir -p {{ BUILD-DIR }} && cd {{ BUILD-DIR }}
             - git clone {{ KERNEL-REPO }}
             - cd linux
-            - git tag -l v{{ VERSION }}*
-            - git checkout tags/v{{ VERSION }}
+            - git tag -l *{{ VERSION }}*
+            - git checkout tags/{{ VERSION }}
       - name: configureKernel
         action: ExecuteBash
         inputs:
           commands:
             - cd {{ BUILD-DIR }}/linux
+            - sed "s/EXTRAVERSION = -{{ REPLACE-EXTRAVERSION }}/EXTRAVERSION = -9999/" -i Makefile
             - cp -v /boot/config-$(uname -r) .config
             - scripts/config --disable CONFIG_BASE_SMALL
             - scripts/config --disable CONFIG_ANDROID_BINDER_IPC
@@ -79,7 +84,7 @@ phases:
         inputs:
           commands:
             - cd {{ BUILD-DIR }}
-            - sudo dpkg -i linux-*-{{ VERSION }}*64_6*
+            - dpkg -i linux-image* linux-headers*
       - name: CleanUp
         action: ExecuteBash
         inputs:

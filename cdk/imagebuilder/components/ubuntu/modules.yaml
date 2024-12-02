@@ -1,0 +1,12 @@
+name: ConfigureModules
+description: Configure module(s) loading
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: ModulesConfiguration
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo msr >> /etc/modules
