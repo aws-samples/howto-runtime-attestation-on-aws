@@ -1,4 +1,4 @@
-# HOWTOto: Deploy an EKS Cluster
+# HOWTO: Deploy an EKS Cluster
 
 These instructions create an EKS cluster, with a managed node-group. The managed node-group creates one worker node using the custom AMI with SEV-SNP support (and spot request).
 
