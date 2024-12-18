@@ -1,7 +1,5 @@
 # Runtime Attestation
 
-External version: https://github.com/aws-samples/howto-runtime-attestation-on-aws
-
 This repository provides artefacts to build and deploy an Amazon machine image (AMI) with SEV-SNP support. This image is meant to be deployed on a bare-metal host with SEV-SNP support (M6A or M7A). The AMI comprises a host OS with kernel support and patched KVM/OVMF (from the [AMDSEV repository](https://github.com/AMDESE/AMDSEV.git)). The bare-metal EC2 host can be used standalone or attached to a Kubernetes cluster. With the standalone EC2, you can then launch a guest OS.
 
 Standard attestation workflow is validated.
