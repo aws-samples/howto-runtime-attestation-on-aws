@@ -462,3 +462,12 @@ bin/delete-image-builder-images.sh
 # Credits
 
 See https://www.youtube.com/watch?v=nwW9aLdcA4I&t=2099s
+
+# Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+# License
+
+This library is licensed under the MIT-0 License. See the LICENSE file.
+
